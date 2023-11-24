@@ -12,6 +12,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
+                .csrf(csrf -> csrf.disable()) // disable CsrfFilter
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/")).permitAll()
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/*.html")).permitAll()
