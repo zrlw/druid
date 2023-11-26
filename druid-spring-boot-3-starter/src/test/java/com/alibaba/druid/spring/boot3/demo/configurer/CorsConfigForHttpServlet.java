@@ -11,7 +11,7 @@
 //import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 //import org.springframework.web.filter.CorsFilter;
 //
-// failure: strict-origin-when-cross-origin 403 Forbidden by CsrfFilter
+//// failure: strict-origin-when-cross-origin 403 Forbidden by CsrfFilter
 //@Configuration
 //public class CorsConfigForHttpServlet {
 //    @Bean

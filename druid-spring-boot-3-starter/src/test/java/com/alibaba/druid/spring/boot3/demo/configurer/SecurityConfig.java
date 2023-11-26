@@ -24,15 +24,21 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
+    private static final String COOKIE_CSRF_TOKEN_KEY = "CSRF-TOKEN";
+    private static final String HTTP_REQUEST_HEADER_CSRF_TOKEN_KEY = "X-CSRF-TOKEN";
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
                 //.csrf(csrf -> csrf.disable()) // disable CsrfFilter
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository()))
-                .addFilterAfter(csrfHeaderFilter(), CsrfFilter.class)
+                .addFilterBefore(wrapReqWithCsrfHeaderFilter(), CsrfFilter.class)
+                .addFilterAfter(setRespCsrfCookieFilter(), CsrfFilter.class)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/")).permitAll()
+                        .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/error")).permitAll()
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/*.html")).permitAll()
+                        .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/*.ico")).permitAll()
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/**.html")).permitAll()
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/**.css")).permitAll()
                         .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/**.js")).permitAll()
@@ -41,7 +47,25 @@ public class SecurityConfig {
                 .build();
     }
 
-    private Filter csrfHeaderFilter() {
+    private Filter wrapReqWithCsrfHeaderFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request,
+                    HttpServletResponse response, FilterChain filterChain)
+                    throws ServletException, IOException {
+                Cookie cookie = WebUtils.getCookie(request, COOKIE_CSRF_TOKEN_KEY);
+                if (cookie == null) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+                CustomHttpServletRequest customRequest = new CustomHttpServletRequest(request);
+                customRequest.addHeader(HTTP_REQUEST_HEADER_CSRF_TOKEN_KEY, cookie.getValue());
+                filterChain.doFilter(customRequest, response);
+            }
+        };
+    }
+
+    private Filter setRespCsrfCookieFilter() {
         return new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(HttpServletRequest request,
@@ -49,11 +73,11 @@ public class SecurityConfig {
                     throws ServletException, IOException {
                 CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
                 if (csrf != null) {
-                    Cookie cookie = WebUtils.getCookie(request, "CSRF-TOKEN");
                     String token = csrf.getToken();
-                    if (cookie == null || token != null
-                            && !token.equals(cookie.getValue())) {
-                        cookie = new Cookie("CSRF-TOKEN", token);
+                    Cookie cookie = WebUtils.getCookie(request, COOKIE_CSRF_TOKEN_KEY);
+                    if (cookie == null
+                            || (token != null && !token.equals(cookie.getValue()))) {
+                        cookie = new Cookie(COOKIE_CSRF_TOKEN_KEY, token);
                         cookie.setPath("/");
                         response.addCookie(cookie);
                     }
@@ -65,7 +89,7 @@ public class SecurityConfig {
 
     private CsrfTokenRepository csrfTokenRepository() {
         HttpSessionCsrfTokenRepository repository = new HttpSessionCsrfTokenRepository();
-        repository.setHeaderName("X-CSRF-TOKEN");
+        repository.setHeaderName(HTTP_REQUEST_HEADER_CSRF_TOKEN_KEY);
         return repository;
     }
 }
