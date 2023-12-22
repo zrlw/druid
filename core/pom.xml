@@ -88,6 +88,12 @@
 	</build>
 
 	<dependencies>
+        <dependency>
+            <artifactId>jctools-core</artifactId>
+            <groupId>org.jctools</groupId>
+            <version>2.1.1</version>
+        </dependency>
+
 		<dependency>
 			<groupId>simple-jndi</groupId>
 			<artifactId>simple-jndi</artifactId>

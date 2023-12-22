@@ -65,10 +65,12 @@ public class DruidDataSourceTest3 extends TestCase {
         threadA.start();
 
         startedLatch.await();
-
-        Thread.sleep(10);
-
         Assert.assertFalse(dataSource.isInited());
+
+        threadA.interrupt();
+        endLatch.await();
+
+        Assert.assertNotNull(error);
 
         final CountDownLatch startedLatchB = new CountDownLatch(1);
         final CountDownLatch endLatchB = new CountDownLatch(1);
@@ -93,13 +95,11 @@ public class DruidDataSourceTest3 extends TestCase {
         Assert.assertNotNull(errorB);
         Assert.assertTrue(errorB.getCause() instanceof InterruptedException);
 
-        threadA.interrupt();
-
         endLatch.await();
         endLatchB.await();
-        Assert.assertNotNull(error);
 
-        Assert.assertEquals(1, dataSource.getCreateErrorCount());
+        // Now, DruidDataSource#init does not create physical connections at all.
+        Assert.assertEquals(0, dataSource.getCreateErrorCount());
 
     }
 }

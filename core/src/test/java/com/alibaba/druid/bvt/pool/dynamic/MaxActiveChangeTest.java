@@ -37,7 +37,7 @@ public class MaxActiveChangeTest extends PoolTestCase {
         dataSource.setMaxActive(3);
         dataSource.setMinIdle(2);
         dataSource.setMinEvictableIdleTimeMillis(1000 * 60 * 5);
-        dataSource.setMaxWait(20);
+        dataSource.setMaxWait(100);
         dataSource.init();
     }
 

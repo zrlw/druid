@@ -43,6 +43,7 @@ public class DruidDataSourceTest_interrupt2 extends TestCase {
                 public void run() {
                     try {
                         startLatch.countDown();
+                        Thread.sleep(10);
                         dataSource.getConnection();
                     } catch (Exception e) {
                         errorCount.incrementAndGet();
@@ -55,8 +56,6 @@ public class DruidDataSourceTest_interrupt2 extends TestCase {
             thread.start();
 
             startLatch.await();
-
-            Thread.sleep(10);
 
             Assert.assertEquals(0, errorCount.get());
 

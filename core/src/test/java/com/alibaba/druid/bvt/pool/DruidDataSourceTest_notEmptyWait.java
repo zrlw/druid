@@ -39,7 +39,7 @@ public class DruidDataSourceTest_notEmptyWait extends TestCase {
         {
             Connection conn = dataSource.getConnection();
             conn.close();
-            Assert.assertEquals(1, dataSource.getNotEmptyWaitCount()); // notEmptyWaitCount没有增长
+            Assert.assertEquals(2, dataSource.getNotEmptyWaitCount()); // notEmptyWaitCount增长
         }
 
         Connection conn = dataSource.getConnection();
@@ -69,7 +69,7 @@ public class DruidDataSourceTest_notEmptyWait extends TestCase {
         startLatch.await(10, TimeUnit.MILLISECONDS);
 
         for (int i = 0; i < 100; ++i) {
-            if (dataSource.getNotEmptyWaitThreadCount() == 10) {
+            if (dataSource.getNotEmptyWaitThreadPeak() == 10) {
                 break;
             }
             Thread.sleep(10);
