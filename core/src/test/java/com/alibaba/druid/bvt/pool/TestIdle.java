@@ -56,8 +56,9 @@ public class TestIdle extends TestCase {
         dataSource.setMaxActive(4);
         // dataSource.setMaxIdle(4);
         dataSource.setMinIdle(1);
-        dataSource.setMinEvictableIdleTimeMillis(50 * 1);
-        dataSource.setTimeBetweenEvictionRunsMillis(10);
+        // the shrink interval at least 1000ms.
+        dataSource.setMinEvictableIdleTimeMillis(1000);
+        dataSource.setTimeBetweenEvictionRunsMillis(1000);
         dataSource.setTestWhileIdle(true);
         dataSource.setTestOnBorrow(false);
         dataSource.setValidationQuery("SELECT 1");
@@ -95,7 +96,7 @@ public class TestIdle extends TestCase {
             Assert.assertEquals(0, dataSource.getActiveCount());
             Assert.assertEquals(4, driver.getConnections().size());
 
-            Thread.sleep(dataSource.getMinEvictableIdleTimeMillis() * 2);
+            Thread.sleep(dataSource.getMinEvictableIdleTimeMillis() * 3);
             Assert.assertEquals(dataSource.getMinIdle(), driver.getConnections().size());
         }
 

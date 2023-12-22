@@ -7961,14 +7961,24 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
         x.getOn().accept(this);
         print0(") ");
 
-        if (x.getUpdateClause() != null) {
-            println();
-            x.getUpdateClause().accept(this);
-        }
-
-        if (x.getInsertClause() != null) {
-            println();
-            x.getInsertClause().accept(this);
+        if (x.isInsertClauseFirst()) {
+            if (x.getInsertClause() != null) {
+                println();
+                x.getInsertClause().accept(this);
+            }
+            if (x.getUpdateClause() != null) {
+                println();
+                x.getUpdateClause().accept(this);
+            }
+        } else {
+            if (x.getUpdateClause() != null) {
+                println();
+                x.getUpdateClause().accept(this);
+            }
+            if (x.getInsertClause() != null) {
+                println();
+                x.getInsertClause().accept(this);
+            }
         }
 
         if (x.getErrorLoggingClause() != null) {
@@ -11663,6 +11673,32 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Paramet
             print0(ucase ? "REMAINDER " : "remainder ");
             x.getForValuesRemainder().accept(this);
             print0(")");
+        }
+        return false;
+    }
+
+    public boolean visit(SQLAlterProcedureStatement x) {
+        print0(ucase ? "ALTER PROCEDURE " : "alter procedure ");
+        x.getName().accept(this);
+
+        SQLExpr comment = x.getComment();
+        if (comment != null) {
+            print0(ucase ? " COMMENT " : " comment ");
+            comment.accept(this);
+        }
+
+        if (x.isLanguageSql()) {
+            print0(ucase ? " LANGUAGE SQL" : " language sql");
+        }
+
+        SQLExpr sqlSecurity = x.getSqlSecurity();
+        if (sqlSecurity != null) {
+            print0(ucase ? " SQL SECURITY " : " sql security ");
+            sqlSecurity.accept(this);
+        }
+
+        if (x.isContainsSql()) {
+            print0(ucase ? " CONTAINS SQL" : " contains sql");
         }
         return false;
     }
