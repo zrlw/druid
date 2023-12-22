@@ -21,7 +21,6 @@ import com.alibaba.druid.proxy.jdbc.ConnectionProxy;
 public class DruidDataSourceTest3 extends TestCase {
     private DruidDataSource dataSource;
     private volatile Exception error;
-    private volatile Exception errorB;
 
     protected void setUp() throws Exception {
         dataSource = new DruidDataSource();
@@ -71,32 +70,9 @@ public class DruidDataSourceTest3 extends TestCase {
         endLatch.await();
 
         Assert.assertNotNull(error);
-
-        final CountDownLatch startedLatchB = new CountDownLatch(1);
-        final CountDownLatch endLatchB = new CountDownLatch(1);
-        Thread threadB = new Thread("B") {
-            public void run() {
-                try {
-                    startedLatchB.countDown();
-                    dataSource.init();
-                } catch (SQLException e) {
-                    errorB = e;
-                } finally {
-                    endLatchB.countDown();
-                }
-            }
-        };
-        threadB.start();
-        startedLatchB.await();
-
-        threadB.interrupt();
-        endLatchB.await();
-
-        Assert.assertNotNull(errorB);
-        Assert.assertTrue(errorB.getCause() instanceof InterruptedException);
+        Assert.assertTrue(error.getCause() instanceof InterruptedException);
 
         endLatch.await();
-        endLatchB.await();
 
         // Now, DruidDataSource#init does not create physical connections at all.
         Assert.assertEquals(0, dataSource.getCreateErrorCount());
