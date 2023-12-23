@@ -2529,36 +2529,22 @@ public class DruidDataSource extends DruidAbstractDataSource
                 }
 
                 // request connections.
-                emptyWait = true;
-                while ((req = requestQueue.peek()) != null) {
+                while (poolingCount > 0
+                        && (req = requestQueue.poll()) != null) {
                     Long expireTime = req.getExpiredTime();
                     if (expireTime == null || System.currentTimeMillis() < expireTime) {
-                        if (poolingCount > 0) {
-                            int count = activeCount.incrementAndGet();
-                            int peak = activePeak.get();
-                            if (count > peak) {
-                                if (activePeak.compareAndSet(peak, count)) {
-                                    activePeakTime = System.currentTimeMillis();
-                                }
+                        int count = activeCount.incrementAndGet();
+                        int peak = activePeak.get();
+                        if (count > peak) {
+                            if (activePeak.compareAndSet(peak, count)) {
+                                activePeakTime = System.currentTimeMillis();
                             }
-                            DruidConnectionHolder holder = connections[--poolingCount];
-                            req.setDruidConnectionHolder(holder);
-
-                            // remove the request from the queue.
-                            requestQueue.poll();
-                        } else {
-                            emptyWait = false;
-                            break;
                         }
-                    } else {
-                        // remove expired request from the queue.
-                        requestQueue.poll();
+                        DruidConnectionHolder holder = connections[--poolingCount];
+                        req.setDruidConnectionHolder(holder);
                     }
                 }
-
-                if (!emptyWait && poolingCount > 0) {
-                    continue;
-                }
+                emptyWait = requestQueue.isEmpty();
 
                 long discardCount = DruidDataSource.this.discardCount.get();
                 boolean discardChanged = discardCount - lastDiscardCount > 0;
