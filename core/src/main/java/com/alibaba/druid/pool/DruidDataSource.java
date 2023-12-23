@@ -1905,10 +1905,6 @@ public class DruidDataSource extends DruidAbstractDataSource
                 }
             }
 
-            if (holder.active) {
-                activeCount.decrementAndGet();
-                holder.active = false;
-            }
             closeCount.incrementAndGet();
 
             result = putLast(holder, currentTimeMillis);
@@ -2073,16 +2069,30 @@ public class DruidDataSource extends DruidAbstractDataSource
                 && !req.isStopping()
                 && !(addOk = mpscQueueAdd(restoreQueue, req))) {
             if (failFast && isFailContinuous()) {
+                if (e.active) {
+                    activeCount.decrementAndGet();
+                    e.active = false;
+                }
                 return false;
             }
         }
 
         if (isInterrupted || req.isStopping()) {
+            if (e.active) {
+                activeCount.decrementAndGet();
+                e.active = false;
+            }
             throw new InterruptedException();
         }
         if (!addOk) {
+            if (e.active) {
+                activeCount.decrementAndGet();
+                e.active = false;
+            }
             return false;
         }
+
+        // let createConnectionThread decrease activeCount since here.
 
         if (Thread.currentThread() == createConnectionThread) {
             // current thread is createConnectionThread.
@@ -2502,6 +2512,10 @@ public class DruidDataSource extends DruidAbstractDataSource
                 // give back connections.
                 while ((req = restoreQueue.poll()) != null) {
                     DruidConnectionHolder holder = req.getDruidConnectionHolder();
+                    if (holder.active) {
+                        activeCount.decrementAndGet();
+                        holder.active = false;
+                    }
                     if (activeCount.get() + poolingCount < maxActive && !holder.discard && !closed && !closing) {
                         connections[poolingCount++] = holder;
                         if (poolingCount > poolingPeak) {
