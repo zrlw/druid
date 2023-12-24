@@ -29,8 +29,8 @@ import junit.framework.TestCase;
 
 @BenchmarkMode(Mode.AverageTime)
 @Warmup(iterations = 1, time = 1)
-@Measurement(iterations = 5, time = 10)
-@Threads(1)
+@Measurement(iterations = 3, time = 10)
+@Threads(3)
 @Fork(1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
