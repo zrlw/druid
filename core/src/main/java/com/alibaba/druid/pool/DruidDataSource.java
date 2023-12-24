@@ -2542,7 +2542,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         continue;
                     }
                 }
-                
+
                 try {
                     // give back connections.
                     while ((req = restoreQueue.poll()) != null) {
