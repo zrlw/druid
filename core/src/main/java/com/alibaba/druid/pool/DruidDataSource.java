@@ -2654,7 +2654,9 @@ public class DruidDataSource extends DruidAbstractDataSource
                         }
                         nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
                     }
-                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(emptyWaitTimes));
+                    if (restoreQueue.isEmpty() && requestQueue.isEmpty()) {
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(emptyWaitTimes));
+                    }
                     continue;
                 }
 
