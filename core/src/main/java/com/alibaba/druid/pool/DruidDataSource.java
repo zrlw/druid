@@ -3598,14 +3598,8 @@ public class DruidDataSource extends DruidAbstractDataSource
                 throw e;
             }
 
-            try {
-                lock.lockInterruptibly();
-            } catch (InterruptedException e) {
-                connectErrorCountUpdater.incrementAndGet(this);
-                throw new SQLException("interrupt", e);
-            }
-
             boolean result = false;
+
             try {
                 if (!this.isFillable(toCount)) {
                     JdbcUtils.close(holder.getConnection());
@@ -3617,8 +3611,6 @@ public class DruidDataSource extends DruidAbstractDataSource
             } catch (InterruptedException e) {
                 connectErrorCountUpdater.incrementAndGet(this);
                 throw new SQLException("interrupt", e);
-            } finally {
-                lock.unlock();
             }
 
             if (!result) {
