@@ -1983,10 +1983,12 @@ public class DruidDataSource extends DruidAbstractDataSource
                 connHolder.getStatementPool().getMap().clear();
 
                 Connection physicalConnection = connHolder.getConnection();
-                try {
-                    physicalConnection.close();
-                } catch (Exception ex) {
-                    LOG.warn("close connection error", ex);
+                if (physicalConnection != null) {
+                    try {
+                        physicalConnection.close();
+                    } catch (Exception ex) {
+                        LOG.warn("close connection error", ex);
+                    }
                 }
                 connections[i] = null;
                 destroyCountUpdater.incrementAndGet(this);
@@ -2468,24 +2470,48 @@ public class DruidDataSource extends DruidAbstractDataSource
         public void run() {
             initedLatch.countDown();
 
+            // keep lock only for shrink unit tests.
+            final Lock lock;
+            if (DruidDataSource.this.isPutLastWaitResponseJustForUnitTestsCompatible()) {
+                lock = DruidDataSource.this.lock;
+            } else {
+                lock = null;
+            }
+
             // init connections
             if (initTask && initialSize > 0) {
-                while (poolingCount < initialSize) {
+                if (lock != null) {
                     try {
-                        PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
-                        DruidConnectionHolder holder = new DruidConnectionHolder(DruidDataSource.this, pyConnectInfo);
-                        connections[poolingCount++] = holder;
-                    } catch (SQLException ex) {
-                        LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
-                        if (initExceptionThrow) {
-                            break;
-                        } else {
-                            try {
-                                Thread.sleep(3000);
-                            } catch (InterruptedException e) {
+                        lock.lockInterruptibly();
+                    } catch (InterruptedException e) {
+                        setMpscQueueStoppingNotice();
+                        return;
+                    }
+                }
+
+                try {
+                    while (poolingCount < initialSize) {
+                        try {
+                            PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
+                            DruidConnectionHolder holder = new DruidConnectionHolder(DruidDataSource.this,
+                                    pyConnectInfo);
+                            connections[poolingCount++] = holder;
+                        } catch (SQLException ex) {
+                            LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
+                            if (initExceptionThrow) {
                                 break;
+                            } else {
+                                try {
+                                    Thread.sleep(3000);
+                                } catch (InterruptedException e) {
+                                    break;
+                                }
                             }
                         }
+                    }
+                } finally {
+                    if (lock != null) {
+                        lock.unlock();
                     }
                 }
 
@@ -2509,39 +2535,53 @@ public class DruidDataSource extends DruidAbstractDataSource
             boolean emptyWait = true;
             DruidConnectionRequest req;
             while (!closing && !closed && !Thread.currentThread().isInterrupted()) {
-                // give back connections.
-                while ((req = restoreQueue.poll()) != null) {
-                    DruidConnectionHolder holder = req.getDruidConnectionHolder();
-                    if (holder.active) {
-                        activeCount.decrementAndGet();
-                        holder.active = false;
+                if (lock != null) {
+                    try {
+                        lock.lockInterruptibly();
+                    } catch (InterruptedException e) {
+                        continue;
                     }
-                    if (activeCount.get() + poolingCount < maxActive && !holder.discard && !closed && !closing) {
-                        connections[poolingCount++] = holder;
-                        if (poolingCount > poolingPeak) {
-                            poolingPeak = poolingCount;
-                            poolingPeakTime = System.currentTimeMillis();
-                        }
-                    }
-
-                    // set holder of the request to null for putLastWaitResponseJustForUnitTestsCompatible true option.
-                    req.setDruidConnectionHolder(null);
                 }
-
-                // request connections.
-                while (poolingCount > 0
-                        && (req = requestQueue.poll()) != null) {
-                    Long expireTime = req.getExpiredTime();
-                    if (expireTime == null || System.currentTimeMillis() < expireTime) {
-                        int count = activeCount.incrementAndGet();
-                        int peak = activePeak.get();
-                        if (count > peak) {
-                            if (activePeak.compareAndSet(peak, count)) {
-                                activePeakTime = System.currentTimeMillis();
+                
+                try {
+                    // give back connections.
+                    while ((req = restoreQueue.poll()) != null) {
+                        DruidConnectionHolder holder = req.getDruidConnectionHolder();
+                        if (holder.active) {
+                            activeCount.decrementAndGet();
+                            holder.active = false;
+                        }
+                        if (activeCount.get() + poolingCount < maxActive && !holder.discard && !closed && !closing) {
+                            connections[poolingCount++] = holder;
+                            if (poolingCount > poolingPeak) {
+                                poolingPeak = poolingCount;
+                                poolingPeakTime = System.currentTimeMillis();
                             }
                         }
-                        DruidConnectionHolder holder = connections[--poolingCount];
-                        req.setDruidConnectionHolder(holder);
+
+                        // set holder of the request to null for
+                        // putLastWaitResponseJustForUnitTestsCompatible true option.
+                        req.setDruidConnectionHolder(null);
+                    }
+
+                    // request connections.
+                    while (poolingCount > 0 && (req = requestQueue.poll()) != null) {
+                        Long expireTime = req.getExpiredTime();
+                        if (expireTime == null || System.currentTimeMillis() < expireTime) {
+                            int count = activeCount.incrementAndGet();
+                            int peak = activePeak.get();
+                            if (count > peak) {
+                                if (activePeak.compareAndSet(peak, count)) {
+                                    activePeakTime = System.currentTimeMillis();
+                                }
+                            }
+                            DruidConnectionHolder holder = connections[--poolingCount];
+                            req.setDruidConnectionHolder(holder);
+                        }
+                    }
+                } finally {
+                    if (lock != null) {
+                        lock.unlock();
                     }
                 }
                 emptyWait = requestQueue.isEmpty();
