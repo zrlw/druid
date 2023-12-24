@@ -3,6 +3,7 @@ package com.alibaba.druid.bvt.pool;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import junit.framework.TestCase;
 
@@ -63,16 +64,14 @@ public class DruidDataSourceTest3 extends TestCase {
         };
         threadA.start();
 
-        startedLatch.await();
+        startedLatch.await(1000, TimeUnit.MILLISECONDS);
         Assert.assertFalse(dataSource.isInited());
 
         threadA.interrupt();
-        endLatch.await();
+        endLatch.await(3000, TimeUnit.MILLISECONDS);
 
         Assert.assertNotNull(error);
         Assert.assertTrue(error.getCause() instanceof InterruptedException);
-
-        endLatch.await();
 
         // Now, DruidDataSource#init does not create physical connections at all.
         Assert.assertEquals(0, dataSource.getCreateErrorCount());
