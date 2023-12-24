@@ -21,7 +21,7 @@ public class MaxPhyTimeMillisTest extends TestCase {
         dataSource.setMinIdle(5);
         dataSource.setMinEvictableIdleTimeMillis(10);
         dataSource.setPhyTimeoutMillis(100);
-        dataSource.setMaxWait(20);
+        dataSource.setMaxWait(100);
         dataSource.init();
     }
 
