@@ -2512,49 +2512,48 @@ public class DruidDataSource extends DruidAbstractDataSource
 
             // init connections
             if (initTask && initialSize > 0) {
-                    while (poolingCount < initialSize) {
-                        try {
-                            PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
-                            if (lock != null) {
-                                try {
-                                    lock.lockInterruptibly();
-                                } catch (InterruptedException e) {
-                                    LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
-                                    setMpscQueueStoppingNotice();
-                                    if (!closing && !closed) {
-                                        DruidDataSource.this.close();
-                                    }
-                                    return;
-                                }
-                            }
+                while (!closing && !closed && !Thread.currentThread().isInterrupted() && poolingCount < initialSize) {
+                    try {
+                        PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
+                        if (lock != null) {
                             try {
-                                if (poolingCount < initialSize) {
-                                    DruidConnectionHolder holder = new DruidConnectionHolder(
-                                            DruidDataSource.this,
-                                            pyConnectInfo);
-                                    connections[poolingCount++] = holder;
-                                } else {
-                                    JdbcUtils.close(pyConnectInfo.getPhysicalConnection());
+                                lock.lockInterruptibly();
+                            } catch (InterruptedException e) {
+                                LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                                setMpscQueueStoppingNotice();
+                                if (!closing && !closed) {
+                                    DruidDataSource.this.close();
                                 }
-                            } finally {
-                                if (lock != null) {
-                                    lock.unlock();
-                                }
+                                return;
                             }
-                        } catch (SQLException ex) {
-                            LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
-                            if (initExceptionThrow) {
-                                break;
+                        }
+                        try {
+                            if (poolingCount < initialSize) {
+                                DruidConnectionHolder holder = new DruidConnectionHolder(DruidDataSource.this,
+                                        pyConnectInfo);
+                                connections[poolingCount++] = holder;
                             } else {
-                                try {
-                                    Thread.sleep(3000);
-                                } catch (InterruptedException e) {
-                                    LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
-                                    break;
-                                }
+                                JdbcUtils.close(pyConnectInfo.getPhysicalConnection());
+                            }
+                        } finally {
+                            if (lock != null) {
+                                lock.unlock();
+                            }
+                        }
+                    } catch (SQLException ex) {
+                        LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
+                        if (initExceptionThrow) {
+                            break;
+                        } else {
+                            try {
+                                Thread.sleep(3000);
+                            } catch (InterruptedException e) {
+                                LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                                break;
                             }
                         }
                     }
+                }
 
                 if (poolingCount < initialSize) {
                     setMpscQueueStoppingNotice();
