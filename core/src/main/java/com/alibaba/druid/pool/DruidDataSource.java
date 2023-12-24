@@ -1979,15 +1979,16 @@ public class DruidDataSource extends DruidAbstractDataSource
             return;
         }
 
-        this.closing = true;
-
         try {
             lock.lockInterruptibly();
         } catch (InterruptedException e) {
-            LOG.error("{dataSource-" + this.getID() + "} close failed.", e);
+            LOG.warn("{dataSource-" + this.getID() + "} close operation interrupted.", e);
             return;
         }
+
         try {
+            this.closing = true;
+
             if (logStatsThread != null) {
                 logStatsThread.interrupt();
             }
@@ -2519,7 +2520,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                             try {
                                 lock.lockInterruptibly();
                             } catch (InterruptedException e) {
-                                LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                                LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
                                 setMpscQueueStoppingNotice();
                                 if (!closing && !closed) {
                                     DruidDataSource.this.close();
@@ -2548,7 +2549,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                             try {
                                 Thread.sleep(3000);
                             } catch (InterruptedException e) {
-                                LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                                LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
                                 break;
                             }
                         }
@@ -2579,7 +2580,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     try {
                         lock.lockInterruptibly();
                     } catch (InterruptedException e) {
-                        LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                        LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
                         break;
                     }
                 }
@@ -2652,7 +2653,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         try {
                             destroyTask();
                         } catch (Throwable t) {
-                            LOG.error("destroy task failure.", t);
+                            LOG.warn("destroy task failure.", t);
                         }
                         nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
                     }
@@ -2671,7 +2672,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                                     + ", state " + ((SQLException) e).getSQLState() : ""), e);
 
                     if (initTask) {
-                        LOG.error("initialize connection failure, the dataSource will be closed, please check configuration!", e);
+                        LOG.warn("initialize connection failure, the dataSource will be closed, please check configuration!", e);
                         break;
                     }
 
@@ -2690,7 +2691,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         try {
                             Thread.sleep(timeBetweenConnectErrorMillis);
                         } catch (InterruptedException interruptEx) {
-                            LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                            LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
                             break;
                         }
                     }
