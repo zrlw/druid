@@ -2192,7 +2192,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
             throw new DataSourceDisableException();
         } else if (isInterrupted || req.isStopping()) {
-            throw new InterruptedException();
+            throw new DataSourceDisableException();
         }
         notEmptyWaitThreadCount.decrementAndGet();
 
@@ -2258,7 +2258,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
             throw new DataSourceDisableException();
         } else if (isInterrupted || req.isStopping()) {
-            throw new InterruptedException();
+            throw new DataSourceDisableException();
         }
         notEmptyWaitThreadCount.decrementAndGet();
 
@@ -2570,7 +2570,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
             long lastDiscardCount = 0;
             int errorCount = 0;
-            boolean emptyWait = true;
+            boolean emptyWait;
             DruidConnectionRequest req;
             while (!closing && !closed && !Thread.currentThread().isInterrupted()) {
                 if (lock != null) {
@@ -2624,6 +2624,9 @@ public class DruidDataSource extends DruidAbstractDataSource
                     }
                 }
                 emptyWait = requestQueue.isEmpty();
+                if (!emptyWait && poolingCount > 0) {
+                    continue;
+                }
 
                 long discardCount = DruidDataSource.this.discardCount.get();
                 boolean discardChanged = discardCount - lastDiscardCount > 0;
@@ -2642,7 +2645,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 }
 
                 // when active and pool connections reach maxActive limit, or other must waiting conditions.
-                if (activeCount.get() + poolingCount >= maxActive || emptyWait) {
+                if (emptyWait || activeCount.get() + poolingCount >= maxActive) {
                     if (System.currentTimeMillis() > nextDestroyTaskTime) {
                         try {
                             destroyTask();
@@ -2651,9 +2654,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         }
                         nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
                     }
-                    if (requestQueue.isEmpty()) {
-                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(emptyWaitTimes));
-                    }
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(emptyWaitTimes));
                     continue;
                 }
 

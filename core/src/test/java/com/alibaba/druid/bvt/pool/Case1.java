@@ -50,6 +50,7 @@ public class Case1 extends PoolTestCase {
             Connection conn = dataSource.getConnection();
             conn.close();
         } catch (Exception e) {
+            e.printStackTrace();
             error = e;
         }
 
