@@ -2503,30 +2503,22 @@ public class DruidDataSource extends DruidAbstractDataSource
         public void run() {
             initedLatch.countDown();
 
-            // keep lock only for shrink unit tests.
-            final Lock lock;
-            if (DruidDataSource.this.isPutLastWaitResponseJustForUnitTestsCompatible()) {
-                lock = DruidDataSource.this.lock;
-            } else {
-                lock = null;
-            }
+            final Lock lock = DruidDataSource.this.lock;
 
             // init connections
             if (initTask && initialSize > 0) {
                 while (!closing && !closed && !Thread.currentThread().isInterrupted() && poolingCount < initialSize) {
                     try {
                         PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
-                        if (lock != null) {
-                            try {
-                                lock.lockInterruptibly();
-                            } catch (InterruptedException e) {
-                                LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
-                                setMpscQueueStoppingNotice();
-                                if (!closing && !closed) {
-                                    DruidDataSource.this.close();
-                                }
-                                return;
+                        try {
+                            lock.lockInterruptibly();
+                        } catch (InterruptedException e) {
+                            LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                            setMpscQueueStoppingNotice();
+                            if (!closing && !closed) {
+                                DruidDataSource.this.close();
                             }
+                            return;
                         }
                         try {
                             if (poolingCount < initialSize) {
@@ -2537,9 +2529,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                                 JdbcUtils.close(pyConnectInfo.getPhysicalConnection());
                             }
                         } finally {
-                            if (lock != null) {
-                                lock.unlock();
-                            }
+                            lock.unlock();
                         }
                     } catch (SQLException ex) {
                         LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
@@ -2576,13 +2566,11 @@ public class DruidDataSource extends DruidAbstractDataSource
             boolean emptyWait;
             DruidConnectionRequest req;
             while (!closing && !closed && !Thread.currentThread().isInterrupted()) {
-                if (lock != null) {
-                    try {
-                        lock.lockInterruptibly();
-                    } catch (InterruptedException e) {
-                        LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
-                        break;
-                    }
+                try {
+                    lock.lockInterruptibly();
+                } catch (InterruptedException e) {
+                    LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                    break;
                 }
 
                 try {
@@ -2622,9 +2610,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         }
                     }
                 } finally {
-                    if (lock != null) {
-                        lock.unlock();
-                    }
+                    lock.unlock();
                 }
                 emptyWait = requestQueue.isEmpty();
                 if (!emptyWait && poolingCount > 0) {
