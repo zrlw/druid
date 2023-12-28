@@ -1,6 +1,9 @@
 package com.alibaba.druid.bvt.pool;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -50,6 +53,7 @@ public class TestActiveTraceBenchmark extends TestCase {
         dataSource.setUrl("jdbc:mock:xxx");
         // does not wait response at putLast for pursuing performance.
         dataSource.setPutLastWaitResponseJustForUnitTestsCompatible(false);
+        dataSource.setMaxActive(16);
     }
 
     @TearDown(Level.Trial)
@@ -60,12 +64,13 @@ public class TestActiveTraceBenchmark extends TestCase {
 
     @Benchmark
     public void test_activeTrace() throws Exception {
-        int count = 1000_000;
+        int count = 10000;
         int i = 0;
         try {
             for (; i < count; ++i) {
                 Connection conn = dataSource.getConnection();
                 Assert.assertNotNull(conn);
+                mockFileIO();
                 conn.close();
                 Assert.assertTrue(conn.isClosed());
             }
@@ -81,5 +86,13 @@ public class TestActiveTraceBenchmark extends TestCase {
         new Runner(options).run();
     }
 
+    private void mockFileIO() {
+        try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream("log4j.properties");) {
+            Properties properties = new Properties();
+            properties.load(inputStream);
+        } catch (IOException e) {
+             // do nothing
+        }
+    }
 }
 
