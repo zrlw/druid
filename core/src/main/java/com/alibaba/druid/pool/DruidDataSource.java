@@ -1982,7 +1982,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         try {
             lock.lockInterruptibly();
         } catch (InterruptedException e) {
-            LOG.warn("{dataSource-" + this.getID() + "} close operation interrupted.", e);
+            LOG.info("{dataSource-" + this.getID() + "} close operation interrupted. " + e.getStackTrace());
             return;
         }
 
@@ -2354,7 +2354,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         try {
             lock.lockInterruptibly();
         } catch (InterruptedException e) {
-            LOG.error("{dataSource-" + this.getID() + "} interrupted.", e);
+            LOG.info("{dataSource-" + this.getID() + "} interrupted. " + e.getStackTrace());
             return null;
         }
         try {
@@ -2466,7 +2466,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         try {
             lock.lockInterruptibly();
         } catch (InterruptedException e) {
-            LOG.error("{dataSource-" + this.getID() + "} put connection to pool failed.", e);
+            LOG.info("{dataSource-" + this.getID() + "} put connection to pool failed. " + e.getStackTrace());
             return false;
         }
         try {
@@ -2513,7 +2513,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         try {
                             lock.lockInterruptibly();
                         } catch (InterruptedException e) {
-                            LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                            LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted." + e.getStackTrace());
                             setMpscQueueStoppingNotice();
                             if (!closing && !closed) {
                                 DruidDataSource.this.close();
@@ -2539,7 +2539,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                             try {
                                 Thread.sleep(3000);
                             } catch (InterruptedException e) {
-                                LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                                LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted. " + e.getStackTrace());
                                 break;
                             }
                         }
@@ -2569,7 +2569,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 try {
                     lock.lockInterruptibly();
                 } catch (InterruptedException e) {
-                    LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                    LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted. " + e.getStackTrace());
                     break;
                 }
 
@@ -2677,7 +2677,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         try {
                             Thread.sleep(timeBetweenConnectErrorMillis);
                         } catch (InterruptedException interruptEx) {
-                            LOG.warn("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                            LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted. " + e.getStackTrace());
                             break;
                         }
                     }
@@ -2781,7 +2781,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 try {
                     lock.lockInterruptibly();
                 } catch (InterruptedException e) {
-                    LOG.error("{dataSource-" + DruidDataSource.this.getID() + "} interrupted.", e);
+                    LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted. " + e.getStackTrace());
                     return removeCount;
                 }
                 try {
