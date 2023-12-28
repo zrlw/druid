@@ -55,7 +55,6 @@
 		<module>druid-spring-boot-starter</module>
 		<module>druid-wrapper</module>
 		<module>druid-demo-petclinic</module>
-		<module>druid-jmh</module>
 	</modules>
 
 	<organization>
@@ -496,5 +495,14 @@
 				<module>druid-spring-boot-3-starter</module>
 			</modules>
 		</profile>
+		<profile>
+            <id>enable-for-jmh</id>
+            <activation>
+                <jdk>(,8]</jdk>
+            </activation>
+            <modules>
+                <module>druid-jmh</module>
+            </modules>
+        </profile>
 	</profiles>
 </project>
