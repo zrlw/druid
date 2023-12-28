@@ -34,7 +34,7 @@ questions.
     <artifactId>druid-jmh</artifactId>
     <packaging>jar</packaging>
 
-    <name>Auto-generated JMH benchmark</name>
+    <name>druid JMH benchmark</name>
 
     <prerequisites>
         <maven>3.0</maven>
