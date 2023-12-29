@@ -40,6 +40,11 @@ questions.
         <maven>3.0</maven>
     </prerequisites>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <uberjar.name>benchmarks</uberjar.name>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.openjdk.jmh</groupId>
@@ -62,26 +67,13 @@ questions.
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
         </dependency>
-
     </dependencies>
-
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jmh.version>1.0</jmh.version>
-        <javac.target>1.8</javac.target>
-        <uberjar.name>benchmarks</uberjar.name>
-    </properties>
 
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <compilerVersion>${javac.target}</compilerVersion>
-                    <source>${javac.target}</source>
-                    <target>${javac.target}</target>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
