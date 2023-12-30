@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
 import static com.alibaba.druid.util.JdbcConstants.POSTGRESQL_DRIVER;
@@ -261,7 +261,7 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
     protected boolean isMySql;
     protected boolean useOracleImplicitCache = true;
 
-    protected ReentrantLock lock;
+    protected ReentrantReadWriteLock lock;
 
     private volatile int createErrorCount;
     protected static final AtomicIntegerFieldUpdater<DruidAbstractDataSource> createErrorCountUpdater
@@ -322,7 +322,7 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
      * @param lockFair a boolean value indicating whether the lock should be fair or not
      */
     public DruidAbstractDataSource(boolean lockFair) {
-        lock = new ReentrantLock(lockFair);
+        lock = new ReentrantReadWriteLock(lockFair);
     }
 
     protected FilterChainImpl createChain() {
@@ -402,16 +402,16 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
         }
 
         if (!this.inited) {
-            final ReentrantLock lock = this.lock;
-            lock.lock();
+            final ReentrantReadWriteLock lock = this.lock;
+            lock.writeLock().lock();
             try {
                 if (!this.inited) {
-                    this.lock = new ReentrantLock(!useUnfairLock);
+                    this.lock = new ReentrantReadWriteLock(!useUnfairLock);
 
                     this.useUnfairLock = useUnfairLock;
                 }
             } finally {
-                lock.unlock();
+                lock.writeLock().unlock();
             }
         }
     }
@@ -1130,14 +1130,14 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
                 LOG.warn("maxWait should not less than 100 ms, set to 100 instead of " + maxWaitMillis);
                 maxWaitMillis = 100;
             }
-            final ReentrantLock lock = this.lock;
-            lock.lock();
+            final ReentrantReadWriteLock lock = this.lock;
+            lock.writeLock().lock();
             try {
                 if ((!this.inited) && (!lock.isFair())) {
-                    this.lock = new ReentrantLock(true);
+                    this.lock = new ReentrantReadWriteLock(true);
                 }
             } finally {
-                lock.unlock();
+                lock.writeLock().unlock();
             }
         }
 
@@ -1491,13 +1491,13 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
                     ((ConnectionProxyImpl) conn).setLastValidateTimeMillis(System.currentTimeMillis());
                 }
                 if (result && onFatalError) {
-                    lock.lock();
+                    lock.readLock().lock();
                     try {
                         if (onFatalError) {
                             onFatalError = false;
                         }
                     } finally {
-                        lock.unlock();
+                        lock.readLock().unlock();
                     }
                 }
             } catch (SQLException ex) {
@@ -1535,13 +1535,13 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
             }
 
             if (onFatalError) {
-                lock.lock();
+                lock.readLock().lock();
                 try {
                     if (onFatalError) {
                         onFatalError = false;
                     }
                 } finally {
-                    lock.unlock();
+                    lock.readLock().unlock();
                 }
             }
         }
@@ -1578,13 +1578,13 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
                 }
 
                 if (valid && onFatalError) {
-                    lock.lock();
+                    lock.readLock().lock();
                     try {
                         if (onFatalError) {
                             onFatalError = false;
                         }
                     } finally {
-                        lock.unlock();
+                        lock.readLock().unlock();
                     }
                 }
 
@@ -1609,13 +1609,13 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
             }
 
             if (valid && onFatalError) {
-                lock.lock();
+                lock.readLock().lock();
                 try {
                     if (onFatalError) {
                         onFatalError = false;
                     }
                 } finally {
-                    lock.unlock();
+                    lock.readLock().unlock();
                 }
             }
 
@@ -1878,26 +1878,26 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
 
     protected void setCreateError(Throwable ex) {
         if (ex == null) {
-            lock.lock();
+            lock.readLock().lock();
             try {
                 if (createError != null) {
                     createError = null;
                 }
             } finally {
-                lock.unlock();
+                lock.readLock().unlock();
             }
             return;
         }
 
         createErrorCountUpdater.incrementAndGet(this);
         long now = System.currentTimeMillis();
-        lock.lock();
+        lock.readLock().lock();
         try {
             createError = ex;
             lastCreateError = ex;
             lastCreateErrorTimeMillis = now;
         } finally {
-            lock.unlock();
+            lock.readLock().unlock();
         }
     }
 

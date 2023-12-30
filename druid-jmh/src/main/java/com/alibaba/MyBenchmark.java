@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @Warmup(iterations = 1, time = 1)
 @Measurement(iterations = 3, time = 10)
-@Threads(4)
+@Threads(16)
 @Fork(1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
@@ -86,7 +86,7 @@ public class MyBenchmark {
 
     @Benchmark
     public void test_activeTrace() throws Exception {
-        int count = 10000;
+        int count = 1000_00;
         int i = 0;
         try {
             for (; i < count; ++i) {

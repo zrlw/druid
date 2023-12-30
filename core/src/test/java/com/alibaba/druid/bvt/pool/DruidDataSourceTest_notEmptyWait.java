@@ -39,7 +39,7 @@ public class DruidDataSourceTest_notEmptyWait extends TestCase {
         {
             Connection conn = dataSource.getConnection();
             conn.close();
-            Assert.assertEquals(2, dataSource.getNotEmptyWaitCount()); // notEmptyWaitCount增长
+            Assert.assertEquals(1, dataSource.getNotEmptyWaitCount()); // notEmptyWaitCount没有增长
         }
 
         Connection conn = dataSource.getConnection();

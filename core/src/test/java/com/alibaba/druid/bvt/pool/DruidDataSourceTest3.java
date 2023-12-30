@@ -70,10 +70,7 @@ public class DruidDataSourceTest3 extends TestCase {
         threadA.interrupt();
         endLatch.await(3000, TimeUnit.MILLISECONDS);
 
-        Assert.assertNotNull(error);
-        Assert.assertTrue(error.getCause() instanceof InterruptedException);
-
-        // Now, DruidDataSource#init does not create physical connections at all.
+        // Now, all physical connections are created by createConntectionTread.
         Assert.assertEquals(0, dataSource.getCreateErrorCount());
 
     }

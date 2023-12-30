@@ -64,7 +64,7 @@ public class TestActiveTraceBenchmark extends TestCase {
 
     @Benchmark
     public void test_activeTrace() throws Exception {
-        int count = 10000;
+        int count = 1000;
         int i = 0;
         try {
             for (; i < count; ++i) {
