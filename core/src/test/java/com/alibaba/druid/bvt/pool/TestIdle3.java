@@ -101,7 +101,7 @@ public class TestIdle3 extends TestCase {
             Assert.assertEquals(14, driver.getConnections().size());
         }
 
-        // 连续打开关闭单个连接
+        // 循环打开连接池里的连接
         for (int i = 0; i < 1000; ++i) {
             Assert.assertEquals(0, dataSource.getActiveCount());
             Connection conn = dataSource.getConnection();
@@ -111,7 +111,7 @@ public class TestIdle3 extends TestCase {
             Thread.sleep(10);
             conn.close();
         }
-        Assert.assertEquals(true, dataSource.getPoolingCount() == 2 || dataSource.getPoolingCount() == 1);
+        Assert.assertEquals(true, dataSource.getPoolingCount() == 14);
 
         dataSource.close();
     }

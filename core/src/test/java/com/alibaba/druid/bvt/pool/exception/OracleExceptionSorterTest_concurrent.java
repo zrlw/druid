@@ -76,8 +76,8 @@ public class OracleExceptionSorterTest_concurrent extends TestCase {
             Thread thread = new Thread() {
                 public void run() {
                     try {
+                        workLatch.countDown();
                         for (int i = 0; i < 1000; ++i) {
-                            workLatch.countDown();
                             Connection conn = dataSource.getConnection();
                             conn.close();
                         }

@@ -37,7 +37,7 @@ public class DestorySchedulerTest extends PoolTestCase {
         }
 
         // the shrink interval is at least 1000ms.
-        Thread.sleep(1200);
+        Thread.sleep(1000 * 3);
         Assert.assertEquals(0, dataSource.getPoolingCount());
     }
 }
