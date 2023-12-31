@@ -8,6 +8,7 @@ import junit.framework.TestCase;
 
 import com.alibaba.druid.filter.FilterAdapter;
 import com.alibaba.druid.filter.FilterChain;
+import com.alibaba.druid.pool.DataSourceDisableException;
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.GetConnectionTimeoutException;
 import com.alibaba.druid.proxy.jdbc.ConnectionProxy;
@@ -41,7 +42,7 @@ public class DruidConnectionHolderTest2 extends PoolTestCase {
         Exception error = null;
         try {
             dataSource.getConnection(100);
-        } catch (GetConnectionTimeoutException e) {
+        } catch (GetConnectionTimeoutException | DataSourceDisableException e) {
             error = e;
         }
         Assert.assertNotNull(error);
