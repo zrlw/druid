@@ -2191,11 +2191,12 @@ public class DruidDataSource extends DruidAbstractDataSource
             while (enable
                     && !(isInterrupted = Thread.interrupted())
                     && !req.isStopping()
+                    && (last = connections.poll()) == null
                     && !(addOk = mpscQueueAdd(requestQueue, req))) {
                 requestConnectionSignal();
                 waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
             }
-            if (addOk) {
+            if (last == null && addOk) {
                 while (enable
                         && !(isInterrupted = Thread.interrupted())
                         && !req.isStopping()) {
@@ -2275,11 +2276,12 @@ public class DruidDataSource extends DruidAbstractDataSource
                     && !(isInterrupted = Thread.interrupted())
                     && !req.isStopping()
                     && waitNanos < maxWaitNanos
+                    && (last = connections.poll()) == null
                     && !(addOk = mpscQueueAdd(requestQueue, req))) {
                 requestConnectionSignal();
                 waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
             }
-            if (addOk) {
+            if (last == null && addOk) {
                 while (enable
                         && !(isInterrupted = Thread.interrupted())
                         && !req.isStopping()
