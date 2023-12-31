@@ -729,7 +729,7 @@ public class DruidDataSource extends DruidAbstractDataSource
             }
             poolingCount.set(cnt);
             connections = newConnections;
-            requestQueue = new MpscArrayQueue<>(maxActive);
+            requestQueue = new MpscArrayQueue<>(Math.max(maxActive, 16));
             evictConnections = new DruidConnectionHolder[maxActive];
             keepAliveConnections = new DruidConnectionHolder[maxActive];
             nullConnections = new DruidConnectionHolder[maxActive];
@@ -918,7 +918,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 capacity <<= 2;
             }
             connections = new MpmcArrayQueue<>(capacity);
-            requestQueue = new MpscArrayQueue<>(maxActive);
+            requestQueue = new MpscArrayQueue<>(Math.max(maxActive, 16));
             evictConnections = new DruidConnectionHolder[maxActive];
             keepAliveConnections = new DruidConnectionHolder[maxActive];
             nullConnections = new DruidConnectionHolder[maxActive];
