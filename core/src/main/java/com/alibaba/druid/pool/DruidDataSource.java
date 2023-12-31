@@ -121,9 +121,6 @@ public class DruidDataSource extends DruidAbstractDataSource
     private CreateConnectionThread createConnectionThread;
     private LogStatsThread logStatsThread;
 
-    private final CountDownLatch initedLatch = new CountDownLatch(1);
-    private final CountDownLatch connectioninitedLatch = new CountDownLatch(1);
-
     private volatile boolean enable = true;
 
     private boolean resetStatEnable = true;
@@ -926,7 +923,6 @@ public class DruidDataSource extends DruidAbstractDataSource
             createAndLogThread();
             createAndStartCreatorThread();
 
-            initedLatch.await();
             init = true;
 
             initedTime = new Date();
@@ -938,8 +934,6 @@ public class DruidDataSource extends DruidAbstractDataSource
         } catch (SQLException e) {
             LOG.error("{dataSource-" + this.getID() + "} init error", e);
             throw e;
-        } catch (InterruptedException e) {
-            throw new SQLException(e.getMessage(), e);
         } catch (RuntimeException e) {
             LOG.error("{dataSource-" + this.getID() + "} init error", e);
             throw e;
@@ -953,9 +947,9 @@ public class DruidDataSource extends DruidAbstractDataSource
 
             if (createConnectionThread != null) {
                 try {
-                    connectioninitedLatch.await();
+                    createConnectionThread.getInitedLatch().await();
                 } catch (InterruptedException e) {
-                    LOG.debug("{dataSource-" + this.getID() + "} init connections error", e);
+                    LOG.debug("{dataSource-" + this.getID() + "} initialize connections error", e);
                     throw new SQLException("interrupt", e);
                 }
             }
@@ -2191,12 +2185,14 @@ public class DruidDataSource extends DruidAbstractDataSource
             while (enable
                     && !(isInterrupted = Thread.interrupted())
                     && !req.isStopping()
-                    && (last = connections.poll()) == null
-                    && !(addOk = mpscQueueAdd(requestQueue, req))) {
+                    && (last = connections.poll()) == null) {
+                if (addOk = mpscQueueAdd(requestQueue, req)) {
+                    break;
+                }
                 requestConnectionSignal();
                 waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
             }
-            if (last == null && addOk) {
+            if (addOk) {
                 while (enable
                         && !(isInterrupted = Thread.interrupted())
                         && !req.isStopping()) {
@@ -2276,12 +2272,14 @@ public class DruidDataSource extends DruidAbstractDataSource
                     && !(isInterrupted = Thread.interrupted())
                     && !req.isStopping()
                     && waitNanos < maxWaitNanos
-                    && (last = connections.poll()) == null
-                    && !(addOk = mpscQueueAdd(requestQueue, req))) {
+                    && (last = connections.poll()) == null) {
+                if (addOk = mpscQueueAdd(requestQueue, req)) {
+                    break;
+                }
                 requestConnectionSignal();
                 waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
             }
-            if (last == null && addOk) {
+            if (addOk) {
                 while (enable
                         && !(isInterrupted = Thread.interrupted())
                         && !req.isStopping()
@@ -2548,15 +2546,18 @@ public class DruidDataSource extends DruidAbstractDataSource
         private final long emptyWaitTimes = Math.max(timeBetweenEvictionRunsMillis, 1000);
         private long nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
         private boolean initTask = true;
+        private final CountDownLatch initedLatch = new CountDownLatch(1);
 
         public CreateConnectionThread(String name) {
             super(name);
             this.setDaemon(true);
         }
 
-        public void run() {
-            initedLatch.countDown();
+        public CountDownLatch getInitedLatch() {
+            return initedLatch;
+        }
 
+        public void run() {
             final ReentrantReadWriteLock lock = DruidDataSource.this.lock;
 
             // init connections
@@ -2618,7 +2619,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     initTask = false;
                 }
             } finally {
-                connectioninitedLatch.countDown();
+                initedLatch.countDown();
             }
 
             DruidConnectionRequest connReq = null;

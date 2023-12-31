@@ -37,6 +37,7 @@ public class DruidDataSourceTest_interrupt extends TestCase {
                 try {
                     startLatch.countDown();
                     dataSource.init();
+                    Thread.sleep(1000);
                 } catch (Exception e) {
                     errorCount.incrementAndGet();
                 } finally {
