@@ -32,7 +32,7 @@ public class OracleExceptionSorterTest_concurrent extends TestCase {
         dataSource.setPoolPreparedStatements(true);
         dataSource.setMaxOpenPreparedStatements(100);
         dataSource.setMaxActive(1);
-        dataSource.setMaxWait(1000 * 100);
+        dataSource.setMaxWait(1000 * 10);
     }
 
     @Override
@@ -48,9 +48,6 @@ public class OracleExceptionSorterTest_concurrent extends TestCase {
             public void run() {
                 try {
                     Connection conn = dataSource.getConnection();
-
-                    latch_0.countDown();
-
                     MockConnection mockConn = conn.unwrap(MockConnection.class);
                     Assert.assertNotNull(mockConn);
 
@@ -65,10 +62,13 @@ public class OracleExceptionSorterTest_concurrent extends TestCase {
                     conn.close();
                 } catch (Exception error) {
                     error.printStackTrace();
+                } finally {
+                   latch_0.countDown();
                 }
             }
         };
         errorThread.start();
+        latch_0.await();
 
         final CountDownLatch workLatch = new CountDownLatch(2);
         final CountDownLatch workCompleteLatch = new CountDownLatch(2);
@@ -91,8 +91,6 @@ public class OracleExceptionSorterTest_concurrent extends TestCase {
             thread.start();
         }
         workLatch.await();
-
-        latch_0.countDown();
 
         workCompleteLatch.await();
 
