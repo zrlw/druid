@@ -2018,7 +2018,11 @@ public class DruidDataSource extends DruidAbstractDataSource
                 logStatsThread.interrupt();
             }
 
-            if (createConnectionThread != null) {
+            // send signal only once to avoid dead locking.
+            if (createConnectionThread != null
+                    && createConnectionThread.isAlive()
+                    && !createConnectionThread.isExiting()) {
+                requestConnectionSignal();
                 createConnectionThread.interrupt();
             }
 
@@ -2057,6 +2061,13 @@ public class DruidDataSource extends DruidAbstractDataSource
         } finally {
             this.closing = false;
             lock.writeLock().unlock();
+        }
+
+        while (createConnectionThread != null
+                && createConnectionThread.isAlive()
+                && !createConnectionThread.isExiting()) {
+            requestConnectionSignal();
+            createConnectionThread.interrupt();
         }
 
         if (LOG.isInfoEnabled()) {
@@ -2547,6 +2558,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         private long nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
         private boolean initTask = true;
         private final CountDownLatch initedLatch = new CountDownLatch(1);
+        private boolean exiting;
 
         public CreateConnectionThread(String name) {
             super(name);
@@ -2555,6 +2567,10 @@ public class DruidDataSource extends DruidAbstractDataSource
 
         public CountDownLatch getInitedLatch() {
             return initedLatch;
+        }
+
+        public boolean isExiting() {
+            return exiting;
         }
 
         public void run() {
@@ -2605,6 +2621,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     }
 
                     if (poolingCount.get() < initialSize) {
+                        exiting = true;
                         setMpscQueueStoppingNotice();
                         if (!closing && !closed) {
                             DruidDataSource.this.close();
@@ -2741,6 +2758,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 // reset errorCount
                 errorCount = 0;
             }
+            exiting = true;
             setMpscQueueStoppingNotice();
             if (!closing && !closed) {
                 DruidDataSource.this.close();

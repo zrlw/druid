@@ -53,8 +53,8 @@ public class DruidDataSourceTest3 extends TestCase {
         Thread threadA = new Thread("A") {
             public void run() {
                 try {
-                    startedLatch.countDown();
                     dataSource.init();
+                    startedLatch.countDown();
                 } catch (SQLException e) {
                     error = e;
                 } finally {
@@ -65,12 +65,14 @@ public class DruidDataSourceTest3 extends TestCase {
         threadA.start();
 
         startedLatch.await(1000, TimeUnit.MILLISECONDS);
-        Assert.assertFalse(dataSource.isInited());
+        // assert wating timeout as threadA hangs by waiting createConnectionThread finish initialization.
+        Assert.assertEquals(1, startedLatch.getCount());
+        // Now, all physical connections are created by createConntectionTread.
+        Assert.assertTrue(dataSource.isInited());
 
         threadA.interrupt();
-        endLatch.await(3000, TimeUnit.MILLISECONDS);
+        endLatch.await(100, TimeUnit.MILLISECONDS);
 
-        // Now, all physical connections are created by createConntectionTread.
         Assert.assertEquals(0, dataSource.getCreateErrorCount());
 
     }
