@@ -131,14 +131,14 @@ public class MaxActiveChangeTest extends PoolTestCase {
         long startTime;
         Connection[] connections = new Connection[count];
         for (int i = 0; i < count; ++i) {
+            startTime = System.currentTimeMillis();
             try {
-                startTime = System.currentTimeMillis();
                 connections[i] = dataSource.getConnection();
                 successCount++;
                 LOG.info("time: " + (System.currentTimeMillis() - startTime) + "ms of get " + count + " i: " + i);
             } catch (GetConnectionTimeoutException e) {
                 // skip
-                LOG.warn("timeout of count: " + count + " i: " + i);
+                LOG.warn("timeout " + (System.currentTimeMillis() - startTime) + "ms of count: " + count + " i: " + i);
             }
         }
 
