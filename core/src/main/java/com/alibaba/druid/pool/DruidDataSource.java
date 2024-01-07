@@ -2406,7 +2406,12 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     @Override
     public int getPoolingCount() {
-        return poolingCount.get();
+        this.lock.readLock().lock();
+        try {
+            return poolingCount.get();
+        } finally {
+            this.lock.readLock().unlock();
+        }
     }
 
     public int getPoolingPeak() {
@@ -2426,7 +2431,12 @@ public class DruidDataSource extends DruidAbstractDataSource
     }
 
     public int getActiveCount() {
-        return activeCount.get();
+        this.lock.readLock().lock();
+        try {
+            return activeCount.get();
+        } finally {
+            this.lock.readLock().unlock();
+        }
     }
 
     public void logStats() throws SQLException {
