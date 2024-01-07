@@ -23,9 +23,12 @@ import junit.framework.TestCase;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.GetConnectionTimeoutException;
+import com.alibaba.druid.support.logging.Log;
+import com.alibaba.druid.support.logging.LogFactory;
 import com.alibaba.druid.util.JdbcUtils;
 
 public class MaxActiveChangeTest extends PoolTestCase {
+    private static final Log LOG = LogFactory.getLog(MaxActiveChangeTest.class);
     private DruidDataSource dataSource;
 
     protected void setUp() throws Exception {
@@ -132,6 +135,7 @@ public class MaxActiveChangeTest extends PoolTestCase {
                 successCount++;
             } catch (GetConnectionTimeoutException e) {
                 // skip
+                LOG.warn("timeout of count: " + count + " i: " + i);
             }
         }
 
