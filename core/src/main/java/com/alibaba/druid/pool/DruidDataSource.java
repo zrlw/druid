@@ -168,6 +168,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     private volatile MpscArrayQueue<DruidConnectionRequest> requestQueue;
     private volatile Map<DruidConnectionRequest, Object> threadRequestInvalidMap = new ConcurrentHashMap<>();
+    private volatile long lastPollTime;
 
     public DruidDataSource() {
         this(false);
@@ -2188,6 +2189,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         long waitNanos = 0;
         Thread currentThread = Thread.currentThread();
 
+        lastPollTime = startTime;
         DruidConnectionHolder last = connections.poll();
         if (last != null) {
             incActiveCountAndDecPoolingCount();
@@ -2278,6 +2280,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         long waitNanos = 0;
         Thread currentThread = Thread.currentThread();
 
+        lastPollTime = startTime;
         DruidConnectionHolder last = connections.poll();
         if (last != null) {
             incActiveCountAndDecPoolingCount();
@@ -3089,6 +3092,11 @@ public class DruidDataSource extends DruidAbstractDataSource
                         poolingCount.incrementAndGet();
                     }
                 }
+            }
+
+            if (checkTime && lastPollTime > System.currentTimeMillis() - 100) {
+                // do not shrink if busy。
+                return;
             }
 
             final int checkCount = poolingCount.get() - minIdle;

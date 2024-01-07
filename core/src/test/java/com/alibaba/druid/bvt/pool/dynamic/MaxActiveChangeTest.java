@@ -135,7 +135,6 @@ public class MaxActiveChangeTest extends PoolTestCase {
                 successCount++;
             } catch (GetConnectionTimeoutException e) {
                 // skip
-                LOG.warn("timeout of count: " + count + " i: " + i);
             }
         }
 
