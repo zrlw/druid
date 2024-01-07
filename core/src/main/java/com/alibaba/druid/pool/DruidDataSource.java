@@ -3161,6 +3161,9 @@ public class DruidDataSource extends DruidAbstractDataSource
         }
 
         if (evictCount > 0) {
+            if (LOG.isInfoEnabled()) {
+                LOG.info("shrink evictCount: " + evictCount);
+            }
             for (int i = 0; i < evictCount; ++i) {
                 DruidConnectionHolder item = evictConnections[i];
                 Connection connection = item.getConnection();
@@ -3172,6 +3175,9 @@ public class DruidDataSource extends DruidAbstractDataSource
         }
 
         if (keepAliveCount > 0) {
+            if (LOG.isInfoEnabled()) {
+                LOG.info("shrink keepAliveCount: " + keepAliveCount);
+            }
             // keep order
             for (int i = keepAliveCount - 1; i >= 0; --i) {
                 DruidConnectionHolder holder = keepAliveConnections[i];
