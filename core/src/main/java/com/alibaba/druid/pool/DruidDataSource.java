@@ -3061,6 +3061,15 @@ public class DruidDataSource extends DruidAbstractDataSource
             return;
         }
 
+        if (checkTime && lastPollTime > System.currentTimeMillis() - Math.min(minEvictableIdleTimeMillis, 100)) {
+            // do not shrink the pool if busy using。
+            return;
+        }
+
+        if (LOG.isInfoEnabled()) {
+            LOG.info("begin shrink");
+        }
+
         final ReentrantReadWriteLock lock = this.lock;
         try {
             lock.writeLock().lockInterruptibly();
@@ -3092,11 +3101,6 @@ public class DruidDataSource extends DruidAbstractDataSource
                         poolingCount.incrementAndGet();
                     }
                 }
-            }
-
-            if (checkTime && lastPollTime > System.currentTimeMillis() - 100) {
-                // do not shrink if busy。
-                return;
             }
 
             final int checkCount = poolingCount.get() - minIdle;
