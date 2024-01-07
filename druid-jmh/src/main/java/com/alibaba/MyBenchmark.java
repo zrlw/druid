@@ -46,16 +46,14 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
 @Warmup(iterations = 1, time = 1)
 @Measurement(iterations = 3, time = 10)
-@Threads(4)
+// Threads.MAX means using Runtime.getRuntime().availableProcessors().
+@Threads(Threads.MAX)
 @Fork(1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
@@ -75,7 +73,10 @@ public class MyBenchmark {
         dataSource.setUrl("jdbc:mock:xxx");
         // does not wait response at putLast for pursuing performance.
         dataSource.setPutLastWaitResponseJustForUnitTestsCompatible(false);
-        dataSource.setMaxActive(16);
+        int procNum = Runtime.getRuntime().availableProcessors();
+        dataSource.setMaxActive(procNum);
+        dataSource.setInitialSize(procNum);
+        dataSource.init();
     }
 
     @TearDown(Level.Trial)
@@ -86,13 +87,14 @@ public class MyBenchmark {
 
     @Benchmark
     public void test_activeTrace() throws Exception {
-        int count = 10000;
+        int count = 1000_00;
         int i = 0;
         try {
             for (; i < count; ++i) {
                 Connection conn = dataSource.getConnection();
                 Assert.assertNotNull(conn);
-                mockFileIO();
+                // sleep 0 to trigger thread scheduling.
+                Thread.sleep(0);
                 conn.close();
                 Assert.assertTrue(conn.isClosed());
             }
@@ -108,14 +110,5 @@ public class MyBenchmark {
                 .include(MyBenchmark.class.getSimpleName())
                 .build();
         new Runner(options).run();
-    }
-
-    private void mockFileIO() {
-        try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream("log4j.properties");) {
-            Properties properties = new Properties();
-            properties.load(inputStream);
-        } catch (IOException e) {
-             // do nothing
-        }
     }
 }

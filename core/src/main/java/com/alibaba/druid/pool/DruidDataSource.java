@@ -121,8 +121,6 @@ public class DruidDataSource extends DruidAbstractDataSource
     private CreateConnectionThread createConnectionThread;
     private LogStatsThread logStatsThread;
 
-    private final CountDownLatch initedLatch = new CountDownLatch(1);
-
     private volatile boolean enable = true;
 
     private boolean resetStatEnable = true;
@@ -911,7 +909,6 @@ public class DruidDataSource extends DruidAbstractDataSource
             createAndLogThread();
             createAndStartCreatorThread();
 
-            initedLatch.await();
             init = true;
 
             initedTime = new Date();
@@ -920,12 +917,9 @@ public class DruidDataSource extends DruidAbstractDataSource
             if (keepAlive) {
                 requestConnectionSignal();
             }
-
         } catch (SQLException e) {
             LOG.error("{dataSource-" + this.getID() + "} init error", e);
             throw e;
-        } catch (InterruptedException e) {
-            throw new SQLException(e.getMessage(), e);
         } catch (RuntimeException e) {
             LOG.error("{dataSource-" + this.getID() + "} init error", e);
             throw e;
@@ -936,6 +930,16 @@ public class DruidDataSource extends DruidAbstractDataSource
         } finally {
             inited = true;
             lock.unlock();
+
+            // await threads initedLatch to support dataSource restart.
+            if (createConnectionThread != null) {
+                try {
+                    createConnectionThread.getInitedLatch().await();
+                } catch (InterruptedException e) {
+                    LOG.debug("{dataSource-" + this.getID() + "} initialize connections error", e);
+                    throw new SQLException("interrupt", e);
+                }
+            }
 
             if (init && LOG.isInfoEnabled()) {
                 String msg = "{dataSource-" + this.getID();
@@ -1510,10 +1514,9 @@ public class DruidDataSource extends DruidAbstractDataSource
         if (holder.active) {
             activeCount.decrementAndGet();
             holder.active = false;
+            discardCount.incrementAndGet();
+            holder.discard = true;
         }
-        discardCount.incrementAndGet();
-
-        holder.discard = true;
 
         if (activeCount.get() + poolingCount < minIdle) {
             emptySignalCalled = true;
@@ -1542,7 +1545,6 @@ public class DruidDataSource extends DruidAbstractDataSource
         final int maxWaitThreadCount = this.maxWaitThreadCount;
 
         DruidConnectionHolder holder;
-
         long startTime = System.currentTimeMillis();  //进入循环等待之前，先记录开始尝试获取连接的时间
         while (true) {
             try {
@@ -1994,6 +1996,7 @@ public class DruidDataSource extends DruidAbstractDataSource
             }
 
             if (createConnectionThread != null) {
+                requestConnectionSignal();
                 createConnectionThread.interrupt();
             }
 
@@ -2032,6 +2035,13 @@ public class DruidDataSource extends DruidAbstractDataSource
         } finally {
             this.closing = false;
             lock.unlock();
+        }
+
+        while (createConnectionThread != null
+                && createConnectionThread.isAlive()
+                && !createConnectionThread.isExiting()) {
+            requestConnectionSignal();
+            createConnectionThread.interrupt();
         }
 
         if (LOG.isInfoEnabled()) {
@@ -2100,6 +2110,8 @@ public class DruidDataSource extends DruidAbstractDataSource
                 }
                 return false;
             }
+            // maxActice control failure.
+            Thread.sleep(1);
         }
 
         if (isInterrupted || req.isStopping()) {
@@ -2135,6 +2147,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                 && !req.isStopping()
                 && req.getDruidConnectionHolder() != null) {
             requestConnectionSignal();
+            req.getDoneLatch().await();
         }
 
         if (isInterrupted) {
@@ -2165,6 +2178,7 @@ public class DruidDataSource extends DruidAbstractDataSource
             if (failFast && isFailContinuous()) {
                 throw new DataSourceNotAvailableException(createError);
             }
+            Thread.sleep(1);
         }
         waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
 
@@ -2174,6 +2188,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     && !req.isStopping()
                     && (last = req.getDruidConnectionHolder()) == null) {
                 requestConnectionSignal();
+                req.getDoneLatch().await();
             }
             waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
         }
@@ -2230,6 +2245,7 @@ public class DruidDataSource extends DruidAbstractDataSource
             if (failFast && isFailContinuous()) {
                 throw new DataSourceNotAvailableException(createError);
             }
+            Thread.sleep(1);
             waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
         }
 
@@ -2240,6 +2256,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     && waitNanos < maxWaitNanos
                     && (last = req.getDruidConnectionHolder()) == null) {
                 requestConnectionSignal();
+                req.getDoneLatch().await(maxWaitNanos - waitNanos, TimeUnit.NANOSECONDS);
                 waitNanos = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - startTime);
             }
         }
@@ -2483,7 +2500,6 @@ public class DruidDataSource extends DruidAbstractDataSource
                 poolingPeak = poolingCount;
                 poolingPeakTime = System.currentTimeMillis();
             }
-
         } finally {
             lock.unlock();
         }
@@ -2494,10 +2510,20 @@ public class DruidDataSource extends DruidAbstractDataSource
         private final long emptyWaitTimes = Math.max(timeBetweenEvictionRunsMillis, 1000);
         private long nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
         private boolean initTask = true;
+        private final CountDownLatch initedLatch = new CountDownLatch(1);
+        private boolean exiting;
 
         public CreateConnectionThread(String name) {
             super(name);
             this.setDaemon(true);
+        }
+
+        public CountDownLatch getInitedLatch() {
+            return initedLatch;
+        }
+
+        public boolean isExiting() {
+            return exiting;
         }
 
         public void run() {
@@ -2506,65 +2532,72 @@ public class DruidDataSource extends DruidAbstractDataSource
             final Lock lock = DruidDataSource.this.lock;
 
             // init connections
-            if (initTask && initialSize > 0) {
-                while (!closing && !closed && !Thread.currentThread().isInterrupted() && poolingCount < initialSize) {
-                    try {
-                        PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
+            try {
+                if (initTask && initialSize > 0) {
+                    while (!closing && !closed
+                            && !Thread.currentThread().isInterrupted()
+                            && poolingCount < initialSize) {
                         try {
-                            lock.lockInterruptibly();
-                        } catch (InterruptedException e) {
-                            LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted." + e.getStackTrace());
-                            setMpscQueueStoppingNotice();
-                            if (!closing && !closed) {
-                                DruidDataSource.this.close();
-                            }
-                            return;
-                        }
-                        try {
-                            if (poolingCount < initialSize) {
-                                DruidConnectionHolder holder = new DruidConnectionHolder(DruidDataSource.this,
-                                        pyConnectInfo);
-                                connections[poolingCount++] = holder;
-                            } else {
-                                JdbcUtils.close(pyConnectInfo.getPhysicalConnection());
-                            }
-                        } finally {
-                            lock.unlock();
-                        }
-                    } catch (SQLException ex) {
-                        LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
-                        if (initExceptionThrow) {
-                            break;
-                        } else {
+                            PhysicalConnectionInfo pyConnectInfo = createPhysicalConnection();
                             try {
-                                Thread.sleep(3000);
+                                lock.lockInterruptibly();
                             } catch (InterruptedException e) {
-                                LOG.info("{dataSource-" + DruidDataSource.this.getID() + "} interrupted. " + e.getStackTrace());
+                                LOG.info("{dataSource-" + DruidDataSource.this.getID()
+                                        + "} interrupted." + e.getStackTrace());
                                 break;
                             }
+                            try {
+                                if (poolingCount < initialSize) {
+                                    DruidConnectionHolder holder = new DruidConnectionHolder(
+                                            DruidDataSource.this,
+                                            pyConnectInfo);
+                                    connections[poolingCount++] = holder;
+                                } else {
+                                    JdbcUtils.close(pyConnectInfo.getPhysicalConnection());
+                                }
+                            } finally {
+                                lock.unlock();
+                            }
+                        } catch (SQLException ex) {
+                            LOG.error("init datasource error, url: " + DruidDataSource.this.getUrl(), ex);
+                            if (initExceptionThrow) {
+                                break;
+                            } else {
+                                try {
+                                    Thread.sleep(3000);
+                                } catch (InterruptedException e) {
+                                    LOG.info("{dataSource-" + DruidDataSource.this.getID()
+                                            + "} interrupted. " + e.getStackTrace());
+                                    break;
+                                }
+                            }
                         }
                     }
-                }
 
-                if (poolingCount < initialSize) {
-                    setMpscQueueStoppingNotice();
-                    if (!closing && !closed) {
-                        DruidDataSource.this.close();
+                    if (poolingCount < initialSize) {
+                        exiting = true;
+                        // close data source priors to sending stopping notice.
+                        if (!closing && !closed) {
+                            DruidDataSource.this.close();
+                        }
+                        setMpscQueueStoppingNotice();
+                        return;
                     }
-                    return;
-                }
 
-                if (poolingCount > 0) {
-                    poolingPeak = poolingCount;
-                    poolingPeakTime = System.currentTimeMillis();
+                    if (poolingCount > 0) {
+                        poolingPeak = poolingCount;
+                        poolingPeakTime = System.currentTimeMillis();
+                    }
+                    initTask = false;
                 }
-                initTask = false;
+            } finally {
+                initedLatch.countDown();
             }
 
+            DruidConnectionRequest req = null;
             long lastDiscardCount = 0;
             int errorCount = 0;
             boolean emptyWait;
-            DruidConnectionRequest req;
             while (!closing && !closed && !Thread.currentThread().isInterrupted()) {
                 try {
                     lock.lockInterruptibly();
@@ -2592,6 +2625,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         // set holder of the request to null for
                         // putLastWaitResponseJustForUnitTestsCompatible true option.
                         req.setDruidConnectionHolder(null);
+                        req.getDoneLatch().countDown();
                     }
 
                     // request connections.
@@ -2607,6 +2641,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                             }
                             DruidConnectionHolder holder = connections[--poolingCount];
                             req.setDruidConnectionHolder(holder);
+                            req.getDoneLatch().countDown();
                         }
                     }
                 } finally {
@@ -2644,7 +2679,8 @@ public class DruidDataSource extends DruidAbstractDataSource
                         nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
                     }
                     if (restoreQueue.isEmpty() && requestQueue.isEmpty()) {
-                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(emptyWaitTimes));
+                        // park only 1 millisecond to avoid ignoring the early sent signal.
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
                     }
                     continue;
                 }
@@ -2667,6 +2703,11 @@ public class DruidDataSource extends DruidAbstractDataSource
                         // fail over retry attempts
                         setFailContinuous(true);
                         if (failFast) {
+                            if (req != null) {
+                                req.setStopping(true);
+                                req.getDoneLatch().countDown();
+                                req = null;
+                            }
                             setMpscQueueStoppingNotice();
                         }
 
@@ -2693,6 +2734,10 @@ public class DruidDataSource extends DruidAbstractDataSource
 
                 boolean result = put(connection);
                 if (!result) {
+                    if (req != null) {
+                        req.setStopping(true);
+                        req.getDoneLatch().countDown();
+                    }
                     JdbcUtils.close(connection.getPhysicalConnection());
                     LOG.info("put physical connection to pool failed.");
                 }
@@ -2700,19 +2745,27 @@ public class DruidDataSource extends DruidAbstractDataSource
                 // reset errorCount
                 errorCount = 0;
             }
-            setMpscQueueStoppingNotice();
+            exiting = true;
+            // close data source priors to send stopping notice.
             if (!closing && !closed) {
                 DruidDataSource.this.close();
             }
+            if (req != null) {
+                req.setStopping(true);
+                req.getDoneLatch().countDown();
+            }
+            setMpscQueueStoppingNotice();
         }
 
         private void setMpscQueueStoppingNotice() {
             DruidConnectionRequest req;
             while ((req = requestQueue.poll()) != null) {
                 req.setStopping(true);
+                req.getDoneLatch().countDown();
             }
             while ((req = restoreQueue.poll()) != null) {
                 req.setStopping(true);
+                req.getDoneLatch().countDown();
             }
         }
 
@@ -2895,7 +2948,6 @@ public class DruidDataSource extends DruidAbstractDataSource
             return;
         }
 
-        // keep lock only for unit tests.
         final Lock lock = this.lock;
         try {
             lock.lockInterruptibly();
@@ -3124,12 +3176,7 @@ public class DruidDataSource extends DruidAbstractDataSource
     }
 
     public String dump() {
-        lock.lock();
-        try {
-            return this.toString();
-        } finally {
-            lock.unlock();
-        }
+        return this.toString();
     }
 
     public long getErrorCount() {
@@ -3139,86 +3186,91 @@ public class DruidDataSource extends DruidAbstractDataSource
     public String toString() {
         StringBuilder buf = new StringBuilder();
 
-        buf.append("{");
+        lock.lock();
+        try {
+            buf.append("{");
 
-        buf.append("\n\tCreateTime:\"");
-        buf.append(Utils.toString(getCreatedTime()));
-        buf.append("\"");
+            buf.append("\n\tCreateTime:\"");
+            buf.append(Utils.toString(getCreatedTime()));
+            buf.append("\"");
 
-        buf.append(",\n\tActiveCount:");
-        buf.append(getActiveCount());
+            buf.append(",\n\tActiveCount:");
+            buf.append(getActiveCount());
 
-        buf.append(",\n\tPoolingCount:");
-        buf.append(getPoolingCount());
+            buf.append(",\n\tPoolingCount:");
+            buf.append(getPoolingCount());
 
-        buf.append(",\n\tCreateCount:");
-        buf.append(getCreateCount());
+            buf.append(",\n\tCreateCount:");
+            buf.append(getCreateCount());
 
-        buf.append(",\n\tDestroyCount:");
-        buf.append(getDestroyCount());
+            buf.append(",\n\tDestroyCount:");
+            buf.append(getDestroyCount());
 
-        buf.append(",\n\tCloseCount:");
-        buf.append(getCloseCount());
+            buf.append(",\n\tCloseCount:");
+            buf.append(getCloseCount());
 
-        buf.append(",\n\tConnectCount:");
-        buf.append(getConnectCount());
+            buf.append(",\n\tConnectCount:");
+            buf.append(getConnectCount());
 
-        buf.append(",\n\tConnections:[");
-        for (int i = 0; i < poolingCount; ++i) {
-            DruidConnectionHolder conn = connections[i];
-            if (conn != null) {
-                if (i != 0) {
-                    buf.append(",");
-                }
-                buf.append("\n\t\t");
-                buf.append(conn.toString());
-            }
-        }
-        buf.append("\n\t]");
-
-        buf.append("\n}");
-
-        if (this.isPoolPreparedStatements()) {
-            buf.append("\n\n[");
+            buf.append(",\n\tConnections:[");
             for (int i = 0; i < poolingCount; ++i) {
                 DruidConnectionHolder conn = connections[i];
                 if (conn != null) {
                     if (i != 0) {
                         buf.append(",");
                     }
-                    buf.append("\n\t{\n\tID:");
-                    buf.append(System.identityHashCode(conn.getConnection()));
-                    PreparedStatementPool pool = conn.getStatementPool();
-
-                    buf.append(", \n\tpoolStatements:[");
-
-                    int entryIndex = 0;
-                    try {
-                        for (Map.Entry<PreparedStatementKey, PreparedStatementHolder> entry : pool.getMap().entrySet()) {
-                            if (entryIndex != 0) {
-                                buf.append(",");
-                            }
-                            buf.append("\n\t\t{hitCount:");
-                            buf.append(entry.getValue().getHitCount());
-                            buf.append(",sql:\"");
-                            buf.append(entry.getKey().getSql());
-                            buf.append("\"");
-                            buf.append("\t}");
-
-                            entryIndex++;
-                        }
-                    } catch (ConcurrentModificationException e) {
-                        // skip ..
-                    }
-
-                    buf.append("\n\t\t]");
-
-                    buf.append("\n\t}");
+                    buf.append("\n\t\t");
+                    buf.append(conn.toString());
                 }
             }
-            buf.append("\n]");
-        }
+            buf.append("\n\t]");
 
+            buf.append("\n}");
+
+            if (this.isPoolPreparedStatements()) {
+                buf.append("\n\n[");
+                for (int i = 0; i < poolingCount; ++i) {
+                    DruidConnectionHolder conn = connections[i];
+                    if (conn != null) {
+                        if (i != 0) {
+                            buf.append(",");
+                        }
+                        buf.append("\n\t{\n\tID:");
+                        buf.append(System.identityHashCode(conn.getConnection()));
+                        PreparedStatementPool pool = conn.getStatementPool();
+
+                        buf.append(", \n\tpoolStatements:[");
+
+                        int entryIndex = 0;
+                        try {
+                            for (Map.Entry<PreparedStatementKey, PreparedStatementHolder> entry : pool.getMap()
+                                    .entrySet()) {
+                                if (entryIndex != 0) {
+                                    buf.append(",");
+                                }
+                                buf.append("\n\t\t{hitCount:");
+                                buf.append(entry.getValue().getHitCount());
+                                buf.append(",sql:\"");
+                                buf.append(entry.getKey().getSql());
+                                buf.append("\"");
+                                buf.append("\t}");
+
+                                entryIndex++;
+                            }
+                        } catch (ConcurrentModificationException e) {
+                            // skip ..
+                        }
+
+                        buf.append("\n\t\t]");
+
+                        buf.append("\n\t}");
+                    }
+                }
+                buf.append("\n]");
+            }
+        } finally {
+            lock.unlock();
+        }
         return buf.toString();
     }
 
@@ -3610,17 +3662,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
         int fillCount = 0;
         for (; ; ) {
-            try {
-                lock.lockInterruptibly();
-            } catch (InterruptedException e) {
-                connectErrorCountUpdater.incrementAndGet(this);
-                throw new SQLException("interrupt", e);
-            }
-
             boolean fillable = this.isFillable(toCount);
-
-            lock.unlock();
-
             if (!fillable) {
                 break;
             }
@@ -3680,11 +3722,16 @@ public class DruidDataSource extends DruidAbstractDataSource
     }
 
     private boolean isFillable(int toCount) {
-        int currentCount = this.poolingCount + this.activeCount.get();
-        if (currentCount >= toCount || currentCount >= this.maxActive) {
-            return false;
-        } else {
-            return true;
+        lock.lock();
+        try {
+            int currentCount = this.poolingCount + this.activeCount.get();
+            if (currentCount >= toCount || currentCount >= this.maxActive) {
+                return false;
+            } else {
+                return true;
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -3744,6 +3791,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     public static final class DruidConnectionRequest {
         private final Thread thread;
+        private final CountDownLatch doneLatch = new CountDownLatch(1);
         private DruidConnectionHolder druidConnectionHolder;
         private Long expiredTime;
         private boolean stopping;
@@ -3754,6 +3802,10 @@ public class DruidDataSource extends DruidAbstractDataSource
 
         public Thread getThread() {
             return thread;
+        }
+
+        public CountDownLatch getDoneLatch() {
+            return doneLatch;
         }
 
         public DruidConnectionHolder getDruidConnectionHolder() {
