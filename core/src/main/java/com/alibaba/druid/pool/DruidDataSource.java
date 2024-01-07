@@ -2769,7 +2769,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                         }
                         nextDestroyTaskTime = System.currentTimeMillis() + emptyWaitTimes;
                     }
-                    if (connReq == null) {
+                    if (connReq == null && requestQueue.size() == 0) {
                         // park only 1 millisecond to avoid ignoring the early sent signal.
                         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
                     }
