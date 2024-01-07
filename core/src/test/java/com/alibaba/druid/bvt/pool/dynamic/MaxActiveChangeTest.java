@@ -19,7 +19,6 @@ import java.sql.Connection;
 
 import com.alibaba.druid.PoolTestCase;
 import org.junit.Assert;
-import junit.framework.TestCase;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.pool.GetConnectionTimeoutException;

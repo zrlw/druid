@@ -2718,8 +2718,9 @@ public class DruidDataSource extends DruidAbstractDataSource
                     connReq = requestQueue.poll();
                 }
                 while (connReq != null
-                        && (expiredTime = connReq.getExpiredTime()) != null
-                        && expiredTime < System.currentTimeMillis()) {
+                        && (connReq.isInvalid()
+                                || ((expiredTime = connReq.getExpiredTime()) != null
+                                        && expiredTime <= System.currentTimeMillis()))) {
                     connReq = requestQueue.poll();
                 }
                 if (connReq != null && (candidate = connections.poll()) != null) {
