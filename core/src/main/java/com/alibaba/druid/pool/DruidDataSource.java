@@ -2701,17 +2701,16 @@ public class DruidDataSource extends DruidAbstractDataSource
             }
 
             DruidConnectionRequest connReq = null;
-            DruidConnectionHolder candidate;
+            DruidConnectionHolder candidate = null;
             long lastDiscardCount = 0;
             int errorCount = 0;
             boolean emptyWait;
             int allCount;
+            Long expiredTime;
+            long discardCount;
+            boolean discardChanged;
+            PhysicalConnectionInfo connection = null;
             while (!closing && !closed && !Thread.currentThread().isInterrupted()) {
-                long discardCount = DruidDataSource.this.discardCount.get();
-                boolean discardChanged = discardCount - lastDiscardCount > 0;
-                lastDiscardCount = discardCount;
-                Long expiredTime;
-
                 if (connReq == null) {
                     connReq = requestQueue.poll();
                 }
@@ -2733,6 +2732,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     connReq.setDruidConnectionHolder(candidate);
                     connReq.getDoneLatch().countDown();
                     connReq = null;
+                    continue;
                 }
 
                 try {
@@ -2750,6 +2750,9 @@ public class DruidDataSource extends DruidAbstractDataSource
                     lock.writeLock().unlock();
                 }
 
+                discardCount = DruidDataSource.this.discardCount.get();
+                discardChanged = discardCount - lastDiscardCount > 0;
+                lastDiscardCount = discardCount;
                 emptyWait = true;
                 if (createError != null && poolingCount.get() == 0 && !discardChanged) {
                     emptyWait = false;
@@ -2786,7 +2789,6 @@ public class DruidDataSource extends DruidAbstractDataSource
                     continue;
                 }
 
-                PhysicalConnectionInfo connection = null;
                 try {
                     connection = createPhysicalConnection();
                 } catch (SQLException | RuntimeException e) {
