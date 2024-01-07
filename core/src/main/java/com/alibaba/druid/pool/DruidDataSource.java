@@ -2789,6 +2789,7 @@ public class DruidDataSource extends DruidAbstractDataSource
                     continue;
                 }
 
+                connection = null;
                 try {
                     connection = createPhysicalConnection();
                 } catch (SQLException | RuntimeException e) {
