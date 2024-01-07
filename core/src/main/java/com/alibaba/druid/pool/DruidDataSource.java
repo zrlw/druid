@@ -3077,15 +3077,17 @@ public class DruidDataSource extends DruidAbstractDataSource
             }
 
             // take back unused active holder.
-            Iterator<DruidConnectionRequest> it = threadRequestInvalidMap.keySet().iterator();
-            while (it.hasNext()) {
-                DruidConnectionRequest req = it.next();
-                it.remove();
-                DruidConnectionHolder holder = req.getDruidConnectionHolder();
-                if (holder != null) {
-                    connections.offer(req.getDruidConnectionHolder());
-                    activeCount.decrementAndGet();
-                    poolingCount.incrementAndGet();
+            if (!threadRequestInvalidMap.isEmpty()) {
+                Iterator<DruidConnectionRequest> it = threadRequestInvalidMap.keySet().iterator();
+                while (it.hasNext()) {
+                    DruidConnectionRequest req = it.next();
+                    it.remove();
+                    DruidConnectionHolder holder = req.getDruidConnectionHolder();
+                    if (holder != null) {
+                        connections.offer(req.getDruidConnectionHolder());
+                        activeCount.decrementAndGet();
+                        poolingCount.incrementAndGet();
+                    }
                 }
             }
 
