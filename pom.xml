@@ -117,7 +117,8 @@
                             <version>${jmh.version}</version>
                         </path>
                     </annotationProcessorPaths>
-                </configuration>
+					<parameters>true</parameters>
+				</configuration>
 				<executions>
 					<!-- Replacing default-compile as it is treated specially by maven -->
 					<execution>

@@ -3067,8 +3067,8 @@ public class DruidDataSource extends DruidAbstractDataSource
             return;
         }
 
-        if (LOG.isInfoEnabled()) {
-            LOG.info("begin shrink");
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("begin shrink");
         }
 
         final ReentrantReadWriteLock lock = this.lock;
@@ -3174,8 +3174,8 @@ public class DruidDataSource extends DruidAbstractDataSource
         }
 
         if (evictCount > 0) {
-            if (LOG.isInfoEnabled()) {
-                LOG.info("shrink evictCount: " + evictCount);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("shrink evictCount: " + evictCount);
             }
             for (int i = 0; i < evictCount; ++i) {
                 DruidConnectionHolder item = evictConnections[i];
@@ -3188,8 +3188,8 @@ public class DruidDataSource extends DruidAbstractDataSource
         }
 
         if (keepAliveCount > 0) {
-            if (LOG.isInfoEnabled()) {
-                LOG.info("shrink keepAliveCount: " + keepAliveCount);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("shrink keepAliveCount: " + keepAliveCount);
             }
             // keep order
             for (int i = keepAliveCount - 1; i >= 0; --i) {
