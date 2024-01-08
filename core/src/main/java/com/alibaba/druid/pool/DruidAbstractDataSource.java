@@ -169,9 +169,6 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
     protected boolean breakAfterAcquireFailure;
     protected long transactionThresholdMillis;
 
-    /** should be set to false on running environment for pursuing performance. */
-    protected boolean putLastWaitResponseJustForUnitTestsCompatible = true;
-
     protected final java.util.Date createdTime = new java.util.Date();
     protected java.util.Date initedTime;
 
@@ -635,14 +632,6 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
 
     public void setBreakAfterAcquireFailure(boolean breakAfterAcquireFailure) {
         this.breakAfterAcquireFailure = breakAfterAcquireFailure;
-    }
-
-    public boolean isPutLastWaitResponseJustForUnitTestsCompatible() {
-        return putLastWaitResponseJustForUnitTestsCompatible;
-    }
-
-    public void setPutLastWaitResponseJustForUnitTestsCompatible(boolean putLastWaitResponseJustForUnitTestsCompatible) {
-        this.putLastWaitResponseJustForUnitTestsCompatible = putLastWaitResponseJustForUnitTestsCompatible;
     }
 
     public int getConnectionErrorRetryAttempts() {
@@ -2205,7 +2194,6 @@ public abstract class DruidAbstractDataSource extends WrapperAdapter implements 
         to.validConnectionChecker = this.validConnectionChecker;
         to.connectionErrorRetryAttempts = this.connectionErrorRetryAttempts;
         to.breakAfterAcquireFailure = this.breakAfterAcquireFailure;
-        to.putLastWaitResponseJustForUnitTestsCompatible = this.putLastWaitResponseJustForUnitTestsCompatible;
         to.transactionThresholdMillis = this.transactionThresholdMillis;
         to.dupCloseLogEnable = this.dupCloseLogEnable;
         to.isOracle = this.isOracle;

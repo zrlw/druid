@@ -51,8 +51,6 @@ public class TestActiveTraceBenchmark extends TestCase {
         dataSource.setTimeBetweenEvictionRunsMillis(10);
         dataSource.setMinEvictableIdleTimeMillis(300 * 1000);
         dataSource.setUrl("jdbc:mock:xxx");
-        // does not wait response at putLast for pursuing performance.
-        dataSource.setPutLastWaitResponseJustForUnitTestsCompatible(false);
         dataSource.setMaxActive(16);
     }
 

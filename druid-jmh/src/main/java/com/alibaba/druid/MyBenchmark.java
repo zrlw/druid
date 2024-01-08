@@ -23,7 +23,7 @@
  * questions.
  */
 
-package com.alibaba;
+package com.alibaba.druid;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.stat.DruidDataSourceStatManager;
@@ -71,8 +71,6 @@ public class MyBenchmark {
         dataSource.setTimeBetweenEvictionRunsMillis(10);
         dataSource.setMinEvictableIdleTimeMillis(300 * 1000);
         dataSource.setUrl("jdbc:mock:xxx");
-        // does not wait response at putLast for pursuing performance.
-        dataSource.setPutLastWaitResponseJustForUnitTestsCompatible(false);
         int procNum = Runtime.getRuntime().availableProcessors() / 2;
         dataSource.setMaxActive(procNum);
         dataSource.setInitialSize(procNum);
