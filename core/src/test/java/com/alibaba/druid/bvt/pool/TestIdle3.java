@@ -111,6 +111,9 @@ public class TestIdle3 extends TestCase {
             Thread.sleep(10);
             conn.close();
         }
+        Assert.assertEquals(true, dataSource.getPoolingCount() == 14);
+        // wait for shrink.
+        Thread.sleep(dataSource.getMinEvictableIdleTimeMillis());
         Assert.assertEquals(true, dataSource.getPoolingCount() == 2 || dataSource.getPoolingCount() == 1);
 
         dataSource.close();

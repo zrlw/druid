@@ -168,6 +168,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     private volatile MpscAtomicArrayQueue<DruidConnectionRequest> requestQueue;
     private volatile MpscAtomicArrayQueue<DruidConnectionRequest> restoreQueue;
+    private volatile long lastPollTime;
 
     public DruidDataSource() {
         this(false);
@@ -2158,6 +2159,7 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     DruidConnectionHolder takeLast() throws InterruptedException, SQLException {
         long startTime = System.currentTimeMillis();
+        lastPollTime = startTime;
         DruidConnectionRequest req = new DruidConnectionRequest(Thread.currentThread());
         req.setExpiredTime(null);
 
@@ -2224,6 +2226,7 @@ public class DruidDataSource extends DruidAbstractDataSource
         }
 
         long startTime = System.currentTimeMillis();
+        lastPollTime = startTime;
         DruidConnectionRequest req = new DruidConnectionRequest(Thread.currentThread());
         req.setExpiredTime(startTime + TimeUnit.NANOSECONDS.toMillis(maxWaitNanos));
 
@@ -2945,6 +2948,11 @@ public class DruidDataSource extends DruidAbstractDataSource
 
     public void shrink(boolean checkTime, boolean keepAlive) {
         if (poolingCount == 0) {
+            return;
+        }
+
+        if (checkTime && lastPollTime > System.currentTimeMillis() - Math.min(minEvictableIdleTimeMillis, 100)) {
+            // do not shrink the pool if busy using。
             return;
         }
 
